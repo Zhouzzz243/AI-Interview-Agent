@@ -60,8 +60,11 @@
 │  ┌───────────────────────────────────────────────────────────────┐  │
 │  │  Layer 1: API 接入层 (FastAPI)                                 │  │
 │  │  POST /api/resume/parse  → 简历解析+向量化                     │  │
-│  │  POST /api/interview/chat → 多轮对话(出题+评分)                │  │
-│  │  POST /api/interview/end  → 综合评估报告                       │  │
+│  │  POST /api/interview/start → 开始面试（初始化+第一题）          │  │
+│  │  POST /api/interview/chat → 多轮对话(出题+评分) ⭐核心         │  │
+│  │  POST /api/interview/end  → 结束面试(综合评分)                 │  │
+│  │  GET  /health             → 健康检查                           │  │
+│  │  GET  /internal/resume/{id} → Java回调获取简历数据（内部）     │  │
 │  └───────────────────────────┬───────────────────────────────────┘  │
 │                              ▼                                       │
 │  ┌───────────────────────────────────────────────────────────────┐  │
@@ -108,7 +111,8 @@
 │                              ▼                                       │
 │  ┌───────────────────────────────────────────────────────────────┐  │
 │  │  Layer 5: Tools 工具层                                        │  │
-│  │  LLMClient(GLM-4) │ OSSClient │ RedisClient │ FileParser    │  │
+│  │  LLMClient(GLM-4) │ FileParser(PDF/Word)                     │  │
+│  │  (OSS/Redis/VectorDB 在 infrastructure 层)                   │  │
 │  └───────────────────────────┬───────────────────────────────────┘  │
 │                              ▼                                       │
 │  ┌───────────────────────────────────────────────────────────────┐  │
@@ -148,7 +152,7 @@ AI-Interview-Agent/
 │   │   ├── routes.py         # RESTful 接口定义
 │   │   └── schemas.py        # Pydantic 数据模型
 │   ├── orchestrator/         # ⭐ 核心：Agent 编排器
-│   │   └── interview_orchestrator.py  # 700+行，状态机+技能调度
+│  │   └── interview_orchestrator.py  # 1100+行，状态机+技能调度
 │   ├── skills/               # 技能模块层
 │   │   ├── base_skill.py     # Skill 抽象基类
 │   │   ├── resume_skill.py   # 简历解析 Skill
@@ -164,10 +168,7 @@ AI-Interview-Agent/
 │   │   └── chat_prompts.py
 │   ├── tools/                # 基础工具层
 │   │   ├── llm_client.py     # GLM-4 封装（温度参数动态调节）
-│   │   ├── file_parser.py    # PDF/Word 解析
-│   │   ├── oss_client.py     # 阿里云 OSS 封装
-│   │   ├── redis_client.py   # Redis 连接池
-│   │   └── vector_store.py   # ChromaDB 操作封装
+│   │   └── file_parser.py    # PDF/Word 解析
 │   ├── memory/               # ⭐ 会话记忆管理
 │   │   ├── memory_manager.py # 双层记忆门面
 │   │   ├── session_store.py  # Redis 持久化
@@ -177,7 +178,10 @@ AI-Interview-Agent/
 │   │   ├── config.py         # 配置中心（Pydantic Settings）
 │   │   ├── error_handler.py  # 全局异常处理
 │   │   ├── circuit_breaker.py # 熔断降级
-│   │   └── logger.py         # 日志配置
+│   │   ├── logger.py         # 日志配置
+│   │   ├── oss_client.py     # 阿里云 OSS 封装
+│   │   ├── redis_client.py   # Redis 连接池
+│   │   └── vector_store.py   # ChromaDB 操作封装
 │   └── main.py               # FastAPI 应用入口
 ├── scripts/
 │   └── import_knowledge_base.py  # 八股知识库导入脚本
