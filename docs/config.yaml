@@ -31,17 +31,17 @@ scoring:
     # 【优化后的评分体系】基于实际面试场景调整
     # 核心思路：实践能力 > 技术基础 > 软技能
     #
-    # 设计理由（2026-04-13 优化）：
-    # 1. 很多人把实习经历归类为项目，所以合并评估更合理
+    # 设计理由（2026-04-19 优化）：
+    # 1. 实践能力是真正体现候选人实战能力的核心
     # 2. 八股文范围广（9大方向），很少有人完全掌握，不应占比过高
-    # 3. 实习/项目才是真正体现候选人实战能力的核心
+    # 3. 实习/项目经验更能反映真实技术水平
     # ══════════════════════════════════════════════
 
-    practice_experience: 0.42   # ⭐ 实践能力（最高！）
-                               # 包含：实习经历(18%) + 项目经验(24%)
+    practice_experience: 0.45   # ⭐ 实践能力（最高！）
+                               # 包含：实习经历(25%) + 项目经验(20%)
                                # 理由：最能体现真实技术水平和动手能力
 
-    technical_knowledge: 0.28   # 技术理论基础（八股文）
+    technical_knowledge: 0.25   # 技术理论基础（八股文）
                                # 理由：范围太广(JVM/并发/MySQL/Redis等)，
                                #       不应成为主要评判标准
 
@@ -55,9 +55,9 @@ scoring:
                                # 理由：基础门槛，不作为主要区分维度
 
     # ── 细分维度（用于内部计算）──
-    internship: 0.18           # 实习经历（归属practice_experience）
-    project: 0.24              # 项目经验（归属practice_experience）
-    eight_part: 0.28           # 八股文问答（=technical_knowledge）
+    internship: 0.25           # 实习经历（归属practice_experience）
+    project: 0.20              # 项目经验（归属practice_experience）
+    eight_part: 0.25           # 八股文问答（=technical_knowledge）
     self_intro: 0.07           # 自我介绍（归属communication）
 
   pass_threshold: 70            # 通过分数线
