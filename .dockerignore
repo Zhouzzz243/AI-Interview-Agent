@@ -1,0 +1,14 @@
+venv/
+__pycache__/
+*.pyc
+*.pyo
+.env
+.git
+.gitignore
+.idea/
+*.md
+docs/
+tests/
+chroma_db/
+knowledge_base/
+.dockerignore

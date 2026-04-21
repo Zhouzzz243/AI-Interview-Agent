@@ -1,0 +1,1 @@
+# AI Interview Agent - 记忆层（会话状态管理）

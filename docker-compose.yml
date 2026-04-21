@@ -1,0 +1,65 @@
+version: '3.8'
+
+services:
+  python-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ai-interview-python
+    ports:
+      - "${PYTHON_PORT:-8083}:8083"
+    environment:
+      - JAVA_BACKEND_URL=${JAVA_BACKEND_URL:-http://java-backend:8082}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+      - CHROMADB_PERSIST_DIR=/data/chroma_db
+      - ZHIPUAI_API_KEY=${ZHIPUAI_API_KEY}
+      - ZHIPUAI_MODEL=${ZHIPUAI_MODEL:-glm-4}
+      - RAG_ENABLED=true
+      - RAG_TOP_K=${RAG_TOP_K:-5}
+    volumes:
+      - ./chroma_db:/data/chroma_db
+      - ./knowledge_base:/data/knowledge_base:ro
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - interview-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; r=httpx.get('http://localhost:8000/docs'); exit(0 if r.status_code==200 else 1)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  redis:
+    image: redis:7-alpine
+    container_name: ai-interview-redis
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    command: >
+      redis-server
+      --requirepass ${REDIS_PASSWORD:-}
+      --maxmemory ${REDIS_MAXMEMORY:-256mb}
+      --maxmemory-policy allkeys-lru
+      --appendonly yes
+      --appendfsync everysec
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-}", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - interview-network
+
+volumes:
+  redis_data:
+
+networks:
+  interview-network:
+    driver: bridge

@@ -1,0 +1,70 @@
+# ============================================
+# AI Interview Agent - 应用配置文件
+# ============================================
+# 类似Spring Boot的 application.yml
+# 用于存储非敏感的业务配置参数
+# 敏感信息（API Key等）请放在 .env 文件中
+# ============================================
+
+app:
+  name: "AI-Interview-Agent-Python"
+  version: "1.0.0"
+  debug: true                    # 开发阶段开启调试模式
+  port: 8083                     # FastAPI服务端口
+
+llm:
+  provider: "zhipuai"            # LLM提供商：zhipuai（智谱AI）
+  model: "glm-4-plus"            # 模型选择：glm-4-plus(旗舰) / glm-4-flashx(免费)
+  temperature: 0.7               # 温度参数（0=严谨 1=创意），默认0.7平衡
+  max_tokens: 2000               # 最大生成Token数
+  timeout: 30                    # LLM调用超时时间（秒）
+
+interview:
+  default_question_limit: 15     # 默认面试题数上限（标准模式）
+  extended_question_limit: 18    # 扩展题数上限（简历丰富时自动放宽）
+  follow_up_budget_base: 3       # 基础追问配额（次数）
+  follow_up_budget_max: 5        # 最大追问配额（次数）
+
+scoring:
+  dimensions:
+    # ══════════════════════════════════════════════
+    # 【优化后的评分体系】基于实际面试场景调整
+    # 核心思路：实践能力 > 技术基础 > 软技能
+    #
+    # 设计理由（2026-04-13 优化）：
+    # 1. 很多人把实习经历归类为项目，所以合并评估更合理
+    # 2. 八股文范围广（9大方向），很少有人完全掌握，不应占比过高
+    # 3. 实习/项目才是真正体现候选人实战能力的核心
+    # ══════════════════════════════════════════════
+
+    practice_experience: 0.42   # ⭐ 实践能力（最高！）
+                               # 包含：实习经历(18%) + 项目经验(24%)
+                               # 理由：最能体现真实技术水平和动手能力
+
+    technical_knowledge: 0.28   # 技术理论基础（八股文）
+                               # 理由：范围太广(JVM/并发/MySQL/Redis等)，
+                               #       不应成为主要评判标准
+
+    communication: 0.15         # 沟通表达能力
+                               # 理由：团队协作必备，但可通过实践间接体现
+
+    potential: 0.10             # 学习潜力与成长性
+                               # 理由：从回答深度和思考方式判断
+
+    attitude: 0.05              # 态度与积极性
+                               # 理由：基础门槛，不作为主要区分维度
+
+    # ── 细分维度（用于内部计算）──
+    internship: 0.18           # 实习经历（归属practice_experience）
+    project: 0.24              # 项目经验（归属practice_experience）
+    eight_part: 0.28           # 八股文问答（=technical_knowledge）
+    self_intro: 0.07           # 自我介绍（归属communication）
+
+  pass_threshold: 70            # 通过分数线
+  excellent_threshold: 85       # 优秀分数线（A等级）
+
+rag:
+  chunk_size: 500                # 文本分块大小（字符数）
+  chunk_overlap: 50              # 分块重叠大小（保持上下文连贯性）
+  top_k: 5                       # 向量检索返回Top-K结果
+  similarity_threshold: 0.7      # 相似度阈值（低于此值的结果不采用）
