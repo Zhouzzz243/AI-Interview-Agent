@@ -6,6 +6,8 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-green.svg)](https://fastapi.tiangolo.com/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
+> 📌 **仓库说明**：原系统采用 **Vue 前端 + Java 后端（业务层） + Python（AI 引擎）** 三端架构，通过 HTTP/REST 接口实现跨语言协作。本仓库仅开源 **Python AI 引擎部分**，包含 ReAct Agent 编排、RAG 检索增强、多维评分系统等核心 AI 模块。
+
 ---
 
 ## 📖 项目简介
