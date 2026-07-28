@@ -196,7 +196,8 @@ class InterviewOrchestrator:
             resume_data = await self._load_resume_from_db(resume_id)
             
             # ===== 步骤④: 生成第一道题 =====
-            question_result = await self._interview_skill.execute(
+            question_result = await self._retry.execute(
+                self._interview_skill.execute,
                 session_id=session_id,
                 context={
                     "phase": InterviewPhase.SELF_INTRO,
@@ -380,7 +381,8 @@ class InterviewOrchestrator:
                 "phase": current_phase.value
             }
             
-            scoring_result = await self._scoring_skill.execute(
+            scoring_result = await self._retry.execute(
+                self._scoring_skill.execute,
                 session_id=session_id,
                 context=scoring_context
             )
@@ -421,7 +423,8 @@ class InterviewOrchestrator:
                 "current_score": current_score
             }
             
-            decision_result = await self._followup_skill.execute(
+            decision_result = await self._retry.execute(
+                self._followup_skill.execute,
                 session_id=session_id,
                 context=followup_context
             )
@@ -589,7 +592,8 @@ class InterviewOrchestrator:
                 "resume_data": resume_data,
             }
             
-            chat_result = await self._chat_mode_handler.execute(
+            chat_result = await self._retry.execute(
+                self._chat_mode_handler.execute,
                 session_id=session_id,
                 context=chat_context,
                 user_answer=user_answer
@@ -1063,7 +1067,8 @@ class InterviewOrchestrator:
         phase: InterviewPhase
     ) -> str:
         """为指定阶段生成新题目"""
-        result = await self._interview_skill.execute(
+        result = await self._retry.execute(
+            self._interview_skill.execute,
             session_id=session_id,
             context={
                 "phase": phase,
