@@ -9,9 +9,13 @@
 【核心职责】
 1. 🔗 串联Skills：决定调用顺序和数据流转
 2. 📦 数据组装：把上一个Skill的输出作为下一个的输入
-3. 🛡️ 错误处理：某个Skill失败时的降级策略
-4. 📝 状态维护：更新Redis中的SessionState
-5. 🎯 流程控制：判断何时追问、何时出下一题、何时切换阶段
+3. 📝 状态维护：更新Redis中的SessionState
+4. 🎯 流程控制：判断何时追问、何时出下一题、何时切换阶段
+
+【横切关注点 → 已抽离到 Harness 层】
+- 🛡️ 错误处理   → app/harness/retry.py  (指数退避重试)
+- 💰 预算控制   → app/harness/budget.py (三层预算)
+- 🔒 输出校验   → app/harness/guard.py  (白名单+参数校验)
 
 【设计模式】
 - Facade模式：对外提供统一入口，隐藏内部复杂性
@@ -27,14 +31,16 @@
 【调用关系图】
 Java端 ──HTTP──→ Router(Step11) ──调用──→ Orchestrator(本文件)
                                          │
-                    ┌────────────────────┼────────────────────┐
-                    ▼                    ▼                    ▼
-              MemoryManager         ScoringSkill        FollowUpSkill
-              (Redis+内存)          (LLM评分)           (追问决策)
-                    │                    │                    │
-                    ▼                    ▼                    ▼
-              SessionStore         LLMClient            LLMClient
-              ShortTermMemory                           InterviewSkill
+              ┌──────────────────────────┼──────────────────────┐
+              ▼                          ▼                      ▼
+        MemoryManager              ScoringSkill           FollowUpSkill
+        (Redis+内存)              (LLM评分)              (追问决策)
+              │                          │                      │
+              ▼                          ▼                      ▼
+        SessionStore               LLMClient              LLMClient
+        ShortTermMemory           [Harness:Retry]     InterviewSkill
+                                  [Harness:Guard]
+                                  [Harness:Budget]
 """
 
 from typing import Any, Dict, List, Optional
@@ -60,6 +66,10 @@ from app.api.schemas import (
     StartInterviewRequest,
     ChatRequest
 )
+# ── Harness 层依赖注入 ──
+from app.harness.budget import InterviewBudget, get_interview_budget
+from app.harness.guard import InterviewGuard, get_interview_guard
+from app.harness.retry import RetryPolicy, RetryPresets
 
 logger = get_logger(__name__)
 
@@ -72,18 +82,17 @@ class InterviewOrchestrator:
     ```java
     @Service
     public class InterviewOrchestrator {
-        @Autowired
-        private MemoryManager memoryManager;
-        @Autowired
-        private ScoringSkill scoringSkill;
-        @Autowired
-        private FollowUpSkill followupSkill;
-        @Autowired
-        private InterviewSkill interviewSkill;
-        @Autowired
-        private ResumeSkill resumeSkill;
+        // 业务依赖
+        @Autowired private MemoryManager memoryManager;
+        @Autowired private ScoringSkill scoringSkill;
+        @Autowired private FollowUpSkill followupSkill;
+        @Autowired private InterviewSkill interviewSkill;
+        @Autowired private ResumeSkill resumeSkill;
         
-        // 核心调度方法...
+        // Harness 层横切依赖
+        @Autowired private InterviewBudget budget;
+        @Autowired private InterviewGuard guard;
+        @Autowired private RetryPolicy retryPolicy;
     }
     ```
     
@@ -94,21 +103,11 @@ class InterviewOrchestrator:
         """
         初始化编排器 - 注入所有依赖
         
-        【Java类比】
-        类似构造函数注入：
-        ```java
-        public InterviewOrchestrator(
-            MemoryManager memoryManager,
-            ScoringSkill scoringSkill,
-            ...
-        ) {
-            this.memoryManager = memoryManager;
-            ...
-        }
-        ```
+        【Java类比】构造函数注入
         """
         logger.info("orchestrator_initializing")
         
+        # ── 业务依赖 ──
         self._memory_manager: MemoryManager = get_memory_manager()
         self._scoring_skill: ScoringSkill = ScoringSkill()
         self._followup_skill: FollowUpSkill = FollowUpSkill()
@@ -116,6 +115,11 @@ class InterviewOrchestrator:
         self._resume_skill: ResumeSkill = ResumeSkill()
         self._chat_mode_handler: ChatModeHandlerSkill = ChatModeHandlerSkill()
         self._settings: InterviewSettings = InterviewSettings()
+        
+        # ── Harness 层横切依赖 ──
+        self._budget: InterviewBudget = get_interview_budget()
+        self._guard: InterviewGuard = get_interview_guard()
+        self._retry: RetryPolicy = RetryPresets.llm_call()
         
         logger.info(
             "orchestrator_initialized",
@@ -125,7 +129,11 @@ class InterviewOrchestrator:
                 "FollowUpSkill", 
                 "InterviewSkill",
                 "ResumeSkill",
-                "ChatModeHandlerSkill"
+                "ChatModeHandlerSkill",
+                # Harness 层
+                "InterviewBudget",
+                "InterviewGuard",
+                "RetryPolicy",
             ]
         )
     
@@ -313,6 +321,19 @@ class InterviewOrchestrator:
         )
         
         try:
+            # ===== Harness: 重置本轮预算计数器 =====
+            self._budget.reset_turn(session_id)
+            
+            # ===== Harness: 预算检查 =====
+            if not self._budget.can_continue(session_id):
+                budget = self._budget.get_status(session_id)
+                logger.warning(
+                    "chat_budget_exhausted",
+                    session_id=session_id,
+                    reason=budget.exhausted_reason.value if budget and budget.exhausted_reason else "unknown"
+                )
+                return self._budget.build_degraded_response(session_id)
+            
             # ===== 步骤①: 加载SessionState =====
             session_state = await self._memory_manager.get_session(session_id)
             
@@ -369,8 +390,20 @@ class InterviewOrchestrator:
                 return {"code": 503, "error": f"评分服务暂不可用: {scoring_result.error}"}
             
             score_data = scoring_result.data
-            current_score = score_data.get("score", 70)
+            raw_score = score_data.get("score", 70)
+            
+            # ── Harness: Guard 净化评分 ──
+            current_score, score_valid = self._guard.sanitize_score(raw_score)
+            if not score_valid:
+                logger.info("chat_score_sanitized_by_guard", raw=raw_score, sanitized=current_score)
+            
             feedback = score_data.get("feedback", "")
+            
+            # ── Harness: Budget 记账（估算本次评分调用的 token）──
+            estimated_tokens = self._budget.estimate_tokens(
+                str(scoring_context.get("answer", "")) + str(feedback)
+            )
+            self._budget.track_llm_call(session_id, tokens_used=estimated_tokens)
             
             logger.info(
                 "chat_scoring_completed",
@@ -398,6 +431,9 @@ class InterviewOrchestrator:
                 decision_data = {"decision": "next_question", "reason": "决策服务降级", "confidence": 0.5}
             else:
                 decision_data = decision_result.data
+            
+            # ── Harness: Guard 净化决策 ──
+            decision_data = self._guard.validate_followup_decision(decision_data)
             
             decision_type = decision_data.get("decision", "next_question")
             decision_reason = decision_data.get("reason", "")
@@ -719,18 +755,22 @@ class InterviewOrchestrator:
                         count=len(score_list)
                     )
             
-            # ===== 步骤③: 调用ScoringSkill计算最终评分 =====
+            # ===== 步骤③: 调用ScoringSkill计算最终评分（带重试）=====
             session_summary = {
                 "total_questions": question_count,
                 "phases_covered": list(avg_scores.keys()),
                 "duration_info": "可通过start_time/end_time计算"
             }
             
-            final_result = await self._scoring_skill.calculate_final_score(
+            final_result = await self._retry.execute(
+                self._scoring_skill.calculate_final_score,
                 session_id=session_id,
                 all_scores=avg_scores,
                 session_summary=session_summary
             )
+            
+            # ── Harness: Guard 校验最终评分 ──
+            final_result = self._guard.validate_final_score_result(final_result)
             
             logger.info(
                 "end_interview_final_score_calculated",
@@ -769,6 +809,9 @@ class InterviewOrchestrator:
                 field="status",
                 value="completed"
             )
+            
+            # ── Harness: 清理 Budget ──
+            self._budget.cleanup(session_id)
             
             logger.info(
                 "end_interview_success",
