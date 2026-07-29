@@ -461,6 +461,30 @@ class MemoryManager:
                 return last_msg.content
         return None
 
+    async def record_phase_score(
+        self,
+        session_id: str,
+        phase_key: str,
+        score: int
+    ) -> None:
+        """
+        追加一条阶段评分记录
+
+        【设计意图】
+        封装「get → modify → set」的 read-modify-write 模式，
+        避免 Orchestrator 手动读写 scores 字典。
+        """
+        session = await self._session_store.get_session(session_id)
+        if not session:
+            return
+        
+        scores = session.get("scores", {})
+        if phase_key not in scores:
+            scores[phase_key] = []
+        scores[phase_key].append(score)
+        
+        await self._session_store.update_field(session_id, "scores", scores)
+
 
 _memory_manager_instance: Optional[MemoryManager] = None
 

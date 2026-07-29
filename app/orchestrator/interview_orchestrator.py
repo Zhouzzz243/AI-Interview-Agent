@@ -1131,20 +1131,11 @@ class InterviewOrchestrator:
         score: int
     ):
         """记录分数到SessionState"""
-        session = await self._memory_manager.get_session(session_id)
-        if session:
-            scores = session.get("scores", {})
-            phase_key = phase.value
-            
-            if phase_key not in scores:
-                scores[phase_key] = []
-            scores[phase_key].append(score)
-            
-            await self._memory_manager.update_session_field(
-                session_id=session_id,
-                field="scores",
-                value=scores
-            )
+        await self._memory_manager.record_phase_score(
+            session_id=session_id,
+            phase_key=phase.value,
+            score=score
+        )
     
     async def _update_system_prompt_for_phase(
         self,
