@@ -241,7 +241,7 @@ class InterviewOrchestrator:
             # 更新题目计数
             session_state = await self._memory_manager.get_session(session_id)
             if session_state:
-                await self._memory_manager._session_store.update_field(
+                await self._memory_manager.update_session_field(
                     session_id=session_id,
                     field="question_count",
                     value=1
@@ -523,14 +523,12 @@ class InterviewOrchestrator:
                 }
             )
             
-            await self._memory_manager._session_store.update_fields(
+            await self._memory_manager.update_session_state(
                 session_id=session_id,
-                fields={
-                    "phase": new_phase.value,
-                    "follow_up_budget": max(0, follow_up_budget),
-                    "question_count": question_count,
-                    "last_active": datetime.now().isoformat()
-                }
+                phase=new_phase.value,
+                follow_up_budget=max(0, follow_up_budget),
+                question_count=question_count,
+                last_active=datetime.now().isoformat()
             )
             
             # 如果阶段变了，更新系统提示词
@@ -647,12 +645,10 @@ class InterviewOrchestrator:
                 target_phase = InterviewPhase(
                     guard_result.sanitized_value if not guard_result.passed else InterviewPhase.FINAL_SCORE.value
                 )
-                await self._memory_manager._session_store.update_fields(
+                await self._memory_manager.update_session_state(
                     session_id=session_id,
-                    fields={
-                        "phase": target_phase.value,
-                        "last_active": datetime.now().isoformat()
-                    }
+                    phase=target_phase.value,
+                    last_active=datetime.now().isoformat()
                 )
                 
                 return {
@@ -845,7 +841,7 @@ class InterviewOrchestrator:
             }
             
             # ===== 步骤⑤: 标记会话结束 =====
-            await self._memory_manager._session_store.update_field(
+            await self._memory_manager.update_session_field(
                 session_id=session_id,
                 field="status",
                 value="completed"
@@ -1091,12 +1087,7 @@ class InterviewOrchestrator:
     
     def _get_last_ai_question(self, session_id: str) -> Optional[str]:
         """获取最后一道AI出的题目"""
-        memory = self._memory_manager._memory_manager.get_memory(session_id)
-        if memory:
-            last_msg = memory.get_last_assistant_message()
-            if last_msg:
-                return last_msg.content
-        return None
+        return self._memory_manager.get_last_assistant_message(session_id)
     
     async def _generate_question_for_phase(
         self,
@@ -1149,7 +1140,7 @@ class InterviewOrchestrator:
                 scores[phase_key] = []
             scores[phase_key].append(score)
             
-            await self._memory_manager._session_store.update_field(
+            await self._memory_manager.update_session_field(
                 session_id=session_id,
                 field="scores",
                 value=scores

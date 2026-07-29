@@ -408,6 +408,59 @@ class MemoryManager:
         """获取对话历史（从 Redis）"""
         return await self._session_store.get_chat_history(session_id, limit)
 
+    # ══════════════════════════════════════════════
+    # 批量会话状态更新（Facade 方法）
+    # ══════════════════════════════════════════════
+
+    async def update_session_state(
+        self,
+        session_id: str,
+        **fields
+    ) -> bool:
+        """
+        批量更新会话状态字段
+
+        【设计意图】
+        封装 SessionStore.update_fields，避免外部直接
+        self._memory_manager._session_store.update_fields(...)
+        违反 Demeter 法则。
+
+        【常用字段】phase, follow_up_budget, question_count, last_active, status
+        """
+        return await self._session_store.update_fields(session_id, fields)
+
+    async def update_session_field(
+        self,
+        session_id: str,
+        field: str,
+        value: Any
+    ) -> bool:
+        """
+        更新单个会话状态字段
+
+        【设计意图】
+        同 update_session_state，单字段版本的便捷方法。
+        """
+        return await self._session_store.update_field(session_id, field, value)
+
+    def get_last_assistant_message(self, session_id: str) -> Optional[str]:
+        """
+        获取最后一条 AI 回复内容
+
+        【设计意图】
+        封装 ShortTermMemoryManager 的内部访问，
+        避免 Orchestrator 直接 self._memory_manager._memory_manager.get_memory(...)
+        违反 Demeter 法则。
+
+        【用途】评分时需要知道"上一道题是什么"
+        """
+        memory = self._memory_manager.get_memory(session_id)
+        if memory:
+            last_msg = memory.get_last_assistant_message()
+            if last_msg:
+                return last_msg.content
+        return None
+
 
 _memory_manager_instance: Optional[MemoryManager] = None
 
