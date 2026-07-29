@@ -382,8 +382,8 @@ async def _test_retry_unknown_exhausted():
         await rp.execute(unknown_error)
         test("不应到达这里", False)
     except RetryExhaustedError:
-        test("UNKNOWN → 重试耗尽", True)
-        test("总调用次数 = 4 (max_retries=3, 共4次尝试)", call_count[0] == 4)
+        test("UNKNOWN → 1次重试后耗尽", True)
+        test("总调用次数 = 2 (首次 + 1次重试)", call_count[0] == 2)
 
 # 3.11 自定义 RetryPolicy
 custom = RetryPolicy(max_retries=5, base_delay=0.5, max_delay=60.0, jitter=0.2, total_timeout=120.0)

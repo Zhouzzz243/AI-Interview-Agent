@@ -303,7 +303,7 @@ class RetryPolicy:
 
                 # 判断是否可重试
                 category = ErrorClassifier.classify(e)
-
+                
                 if category == ErrorCategory.NON_RETRYABLE:
                     logger.warning(
                         "retry_skipped_non_retryable",
@@ -311,7 +311,20 @@ class RetryPolicy:
                         error_type=type(e).__name__,
                         error_msg=str(e)[:200],
                     )
-                    raise  # 不重试，直接抛出
+                    raise
+                elif category == ErrorCategory.UNKNOWN and attempt >= 1:
+                    # UNKNOWN: 仅重试1次（attempt=0 首次允许重试，attempt>=1 不再重试）
+                    logger.warning(
+                        "retry_skipped_unknown",
+                        attempt=attempt,
+                        error_type=type(e).__name__,
+                        error_msg=str(e)[:200],
+                    )
+                    raise RetryExhaustedError(
+                        original_error=e,
+                        attempts=attempt + 1,
+                        total_time_ms=elapsed_ms,
+                    )
 
                 # 计算延迟
                 delay = self._calc_delay(attempt)
