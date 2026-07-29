@@ -195,6 +195,12 @@ class InterviewOrchestrator:
             # ===== 步骤②③: 从Java端加载简历数据 =====
             resume_data = await self._load_resume_from_db(resume_id)
             
+            # ===== Harness: 启动预算追踪 =====
+            self._budget.reset_turn(session_id)
+            if not self._budget.can_continue(session_id):
+                logger.warning("start_interview_budget_exhausted", session_id=session_id)
+                return {"code": 503, "error": "面试额度已用完，无法开始新面试"}
+
             # ===== 步骤④: 生成第一道题 =====
             question_result = await self._retry.execute(
                 self._interview_skill.execute,
@@ -216,6 +222,10 @@ class InterviewOrchestrator:
             
             generated_question = question_result.data
             question_text = generated_question.get("question", "")
+
+            # ── Harness: Budget 记账 ──
+            estimated_tokens = self._budget.estimate_tokens(question_text)
+            self._budget.track_llm_call(session_id, tokens_used=estimated_tokens)
             
             # ===== 步骤⑤: 更新Redis状态 =====
             await self._memory_manager.record_assistant_message(
@@ -468,7 +478,21 @@ class InterviewOrchestrator:
                 follow_up_budget -= 1
                 
             elif decision_type == "phase_switch":
-                new_phase = self._get_next_phase(current_phase)
+                desired_phase = self._get_next_phase(current_phase)
+                # ── Harness: Guard 校验阶段转换 ──
+                phase_result = self._guard.validate_phase_transition(
+                    current_phase.value, desired_phase.value
+                )
+                if not phase_result.passed:
+                    logger.warning(
+                        "chat_phase_transition_blocked_by_guard",
+                        from_phase=current_phase.value,
+                        to_phase=desired_phase.value,
+                        safe_fallback=phase_result.sanitized_value,
+                    )
+                    new_phase = InterviewPhase(phase_result.sanitized_value)
+                else:
+                    new_phase = desired_phase
                 next_question = await self._generate_question_for_phase(
                     session_id=session_id,
                     phase=new_phase
@@ -608,12 +632,25 @@ class InterviewOrchestrator:
                 return {"code": 503, "error": f"闲聊服务暂不可用: {chat_result.error}"}
             
             chat_data = chat_result.data
+
+            # ── Harness: Budget 记账（闲聊模式也是 LLM 调用）──
+            estimated_tokens = self._budget.estimate_tokens(
+                str(user_answer) + str(chat_data.get("feedback", ""))
+            )
+            self._budget.track_llm_call(session_id, tokens_used=estimated_tokens)
             
             if chat_data.get("next_action") == "transition_to_final_score":
+                # ── Harness: Guard 校验阶段转换 ──
+                guard_result = self._guard.validate_phase_transition(
+                    InterviewPhase.CHAT_MODE.value, InterviewPhase.FINAL_SCORE.value
+                )
+                target_phase = InterviewPhase(
+                    guard_result.sanitized_value if not guard_result.passed else InterviewPhase.FINAL_SCORE.value
+                )
                 await self._memory_manager._session_store.update_fields(
                     session_id=session_id,
                     fields={
-                        "phase": InterviewPhase.FINAL_SCORE.value,
+                        "phase": target_phase.value,
                         "last_active": datetime.now().isoformat()
                     }
                 )
@@ -624,7 +661,7 @@ class InterviewOrchestrator:
                         "score": chat_data.get("score"),
                         "feedback": chat_data.get("feedback", "感谢你的分享，让我们来总结一下今天的面试表现吧。"),
                         "nextQuestion": "",
-                        "phase": InterviewPhase.FINAL_SCORE.value,
+                        "phase": target_phase.value,
                         "isFollowUp": False,
                         "questionCount": question_count,
                         "remainingQuestions": 0,
@@ -1079,7 +1116,11 @@ class InterviewOrchestrator:
         )
         
         if result.success and result.data:
-            return result.data.get("question", "请继续描述你的相关经验。")
+            question_text = result.data.get("question", "请继续描述你的相关经验。")
+            # ── Harness: Budget 记账 ──
+            estimated_tokens = self._budget.estimate_tokens(question_text)
+            self._budget.track_llm_call(session_id, tokens_used=estimated_tokens)
+            return question_text
         
         return "请继续分享你的想法。"
     
