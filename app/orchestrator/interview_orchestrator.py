@@ -195,6 +195,13 @@ class InterviewOrchestrator:
             # ===== 步骤②③: 从Java端加载简历数据 =====
             resume_data = await self._load_resume_from_db(resume_id)
             
+            # 将简历数据保存到会话状态，供后续出题使用
+            await self._memory_manager.update_session_field(
+                session_id=session_id,
+                field="resume_data",
+                value=resume_data
+            )
+
             # ===== Harness: 启动预算追踪 =====
             self._budget.reset_turn(session_id)
             if not self._budget.can_continue(session_id):
@@ -1095,12 +1102,15 @@ class InterviewOrchestrator:
         phase: InterviewPhase
     ) -> str:
         """为指定阶段生成新题目"""
+        session = await self._memory_manager.get_session(session_id)
+        resume_data = session.get("resume_data", {}) if session else {}
+        
         result = await self._retry.execute(
             self._interview_skill.execute,
             session_id=session_id,
             context={
                 "phase": phase,
-                "resume_data": {},
+                "resume_data": resume_data,
                 "question_count": 0,
                 "asked_questions": []
             }
