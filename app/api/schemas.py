@@ -242,6 +242,16 @@ class ChatRequest(BaseModel):
     )
 
 
+class EndInterviewRequest(BaseModel):
+    """
+    结束面试请求
+
+    【说明】
+    与其他POST接口保持一致，使用Pydantic请求体而非Query参数。
+    """
+    session_id: str = Field(..., description="会话ID", example="session_abc123")
+
+
 class GeneratedQuestion(BaseModel):
     """
     生成的面试题目

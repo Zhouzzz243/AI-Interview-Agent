@@ -31,7 +31,7 @@ Java端(HTTP) ──→ FastAPI Router(本文件) ──→ InterviewOrchestrato
 import time
 from typing import Any, Dict
 
-from fastapi import APIRouter, Request, Query
+from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
 from app.infrastructure.logger import get_logger
@@ -44,6 +44,7 @@ from app.api.schemas import (
     ResumeParseResponse,
     StartInterviewRequest,
     ChatRequest,
+    EndInterviewRequest,
     ChatResponse,
     EvaluateResponse,
 )
@@ -272,24 +273,21 @@ async def chat(request: ChatRequest):
 
 
 @router.post("/api/interview/end")
-async def end_interview(
-    request: Request,
-    session_id: str = Query(..., description="面试会话ID"),
-):
+async def end_interview(request: EndInterviewRequest):
     """
     结束面试评分接口（链路4）
 
     【Java类比】
     ```java
     @PostMapping("/api/interview/end")
-    public Result<EndVO> endInterview(@RequestParam String sessionId) { ... }
+    public Result<EndVO> endInterview(@RequestBody EndInterviewReq req) { ... }
     ```
 
     【触发时机】
     用户点击"结束面试"或题目用完时自动触发
 
     【请求参数】
-    - session_id: 会话ID（Query参数）
+    - session_id: 会话ID（Pydantic请求体）
 
     【返回值】FinalScoreResult（9个字段）：
     - final_score: 最终总分(0-100)
@@ -309,10 +307,10 @@ async def end_interview(
     - 500: 综合评分计算失败
     - 503: LLM服务不可用
     """
-    logger.info("api_end_interview_called", session_id=session_id)
+    logger.info("api_end_interview_called", session_id=request.session_id)
 
     orchestrator = get_interview_orchestrator()
-    result = await orchestrator.end_interview(session_id=session_id)
+    result = await orchestrator.end_interview(session_id=request.session_id)
 
     if result.get("code") == 200:
         data = result.get("data", {})
@@ -322,7 +320,7 @@ async def end_interview(
     error_msg = result.get("error", "未知错误")
 
     if error_code == 404:
-        raise SessionNotFoundError(session_id)
+        raise SessionNotFoundError(request.session_id)
     if error_code in (503,):
         raise LLMCallError(error_msg)
 

@@ -1166,6 +1166,9 @@ class InterviewOrchestrator:
         await self._memory_manager.update_system_prompt(session_id, new_prompt)
 
 
+_orchestrator_instance: Optional[InterviewOrchestrator] = None
+
+
 def get_interview_orchestrator() -> InterviewOrchestrator:
     """
     获取InterviewOrchestrator单例（工厂方法）
@@ -1174,6 +1177,7 @@ def get_interview_orchestrator() -> InterviewOrchestrator:
     类似Spring的@Bean或者@Configurable单例注入：
     ```java
     @Bean
+    @Scope("singleton")
     public InterviewOrchestrator orchestrator() {
         return new InterviewOrchestrator();
     }
@@ -1185,4 +1189,13 @@ def get_interview_orchestrator() -> InterviewOrchestrator:
     orchestrator = get_interview_orchestrator()
     result = await orchestrator.chat("session_123", "HashMap底层是数组加链表...")
     """
-    return InterviewOrchestrator()
+    global _orchestrator_instance
+    if _orchestrator_instance is None:
+        _orchestrator_instance = InterviewOrchestrator()
+    return _orchestrator_instance
+
+
+def reset_orchestrator_instance():
+    """重置单例（测试用）"""
+    global _orchestrator_instance
+    _orchestrator_instance = None
