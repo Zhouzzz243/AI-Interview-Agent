@@ -15,7 +15,7 @@ LLM 客户端模块 - 智谱AI GLM-4 封装
 【设计模式】
 - 单例模式: 通过依赖注入全局共享一个客户端实例
 - 策略模式: 不同模型调用使用相同接口
-- 装饰器模式: circuit_breaker + logging 包装实际调用
+- 装饰器模式: logging 包装实际调用
 
 【使用示例】
 from app.tools.llm_client import LLMClient, get_llm_client
@@ -42,7 +42,6 @@ from zhipuai import ZhipuAI
 
 from app.infrastructure.config import get_settings
 from app.infrastructure.logger import get_logger
-from app.infrastructure.circuit_breaker import circuit_breaker
 from app.infrastructure.error_handler import LLMCallError, LLMTimeoutError
 
 logger = get_logger(__name__)
@@ -254,7 +253,7 @@ class LLMClient:
         【异常处理】
         - LLMCallError: API 调用失败
         - LLMTimeoutError: 请求超时
-        - 由 circuit_breaker 装饰器统一捕获
+        - 由 RetryPolicy 统一处理
 
         【使用示例】
         # 简单调用

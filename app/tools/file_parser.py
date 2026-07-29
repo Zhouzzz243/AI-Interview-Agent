@@ -165,7 +165,7 @@ class FileParser:
 
         【异常处理】
         - FileParseError: 文件不存在或不支持的格式
-        - 由上层 circuit_breaker 或 error_handler 统一捕获
+        - 由上层 error_handler 统一捕获
 
         【使用示例】
         parser = FileParser()
