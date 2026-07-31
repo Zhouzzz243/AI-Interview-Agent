@@ -333,9 +333,7 @@ async def get_resume_data(resume_id: str):
     [内部接口] 获取简历数据（供 Java 端实现后 Python 回调）
 
     【说明】
-    此接口是 Step 11 新增的内部接口，用于解决 interview_orchestrator.py 第182行的 TODO：
-
-        TODO: 后续集成时，这里应该调用Java提供的API或直接查MySQL
+    此接口是 Step 11 新增的内部接口，Java端实现后 Python 通过 HTTP 回调获取简历数据。
 
     【两种对接模式】
 
