@@ -374,12 +374,13 @@ async def get_resume_data(resume_id: str):
     from app.infrastructure.config import get_settings
 
     settings = get_settings()
-    java_url = settings.java_backend_url.rstrip("/")
+    java_url = settings.java_backend_url
+    java_timeout = settings.java_backend_timeout
 
     import httpx
 
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        async with httpx.AsyncClient(timeout=java_timeout) as client:
             response = await client.get(
                 f"{java_url}/api/internal/python/resume/{resume_id}",
                 headers={"X-Internal-Service": "ai-interview-python"},

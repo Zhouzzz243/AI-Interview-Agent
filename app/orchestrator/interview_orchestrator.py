@@ -977,7 +977,9 @@ class InterviewOrchestrator:
         )
 
         try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
+            settings = get_settings()
+            timeout = settings.java_backend_timeout
+            async with httpx.AsyncClient(timeout=timeout) as client:
                 response = await client.get(
                     f"{java_url}/api/internal/python/resume/{resume_id}",
                     headers={

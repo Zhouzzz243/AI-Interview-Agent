@@ -85,7 +85,7 @@ async def lifespan(app: FastAPI):
     logger.info(
         "app_starting",
         service=app_settings.app_name,
-        version="1.0.0",
+        version=app_settings.app_version,
         port=app_settings.port,
         env=app_settings.app_env,
         llm_model=llm_settings.model,
@@ -154,7 +154,7 @@ Java(Spring Boot:8082) ←HTTP→ Python(FastAPI:8083)
 - [完整链路文档](./docs/AI_Interview_完整链路文档_v1.md)
 - [架构方案 v2.0](./docs/AI_Interview_Agent_完整架构方案_v2.0.md)
         """,
-        version="1.0.0",
+        version=app_settings.app_version,
         docs_url="/docs",
         redoc_url="/redoc",
         openapi_url="/openapi.json",
@@ -167,8 +167,7 @@ Java(Spring Boot:8082) ←HTTP→ Python(FastAPI:8083)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"] if app_settings.app_env == "development" else [
-            "http://localhost:8082",
-            "http://localhost:3000",
+            o.strip() for o in app_settings.cors_origins.split(",")
         ],
         allow_credentials=True,
         allow_methods=["*"],

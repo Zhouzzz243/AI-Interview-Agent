@@ -33,9 +33,14 @@ class AppSettings(BaseSettings):
     """应用基础配置（类似Spring Boot的server.*配置）"""
 
     app_name: str = Field(default="AI-Interview-Agent-Python", description="应用名称")
+    app_version: str = Field(default="1.0.0", description="应用版本号")
     app_env: str = Field(default="development", description="运行环境")
     port: int = Field(default=8083, ge=1024, le=65535, description="服务端口")
     debug: bool = Field(default=True, description="调试模式")
+    cors_origins: str = Field(
+        default="http://localhost:8082,http://localhost:3000",
+        description="CORS 允许的跨域来源（逗号分隔）"
+    )
 
     model_config = SettingsConfigDict(env_prefix="APP_")
 
@@ -177,6 +182,7 @@ class Settings(BaseSettings):
     rag: RAGSettings = RAGSettings()
 
     java_backend_url: str = Field(default="http://localhost:8082", description="Java后端地址")
+    java_backend_timeout: float = Field(default=10.0, ge=1.0, le=60.0, description="Java后端HTTP超时(秒)")
 
     model_config = SettingsConfigDict(
         env_file=str(Path(__file__).parent.parent.parent / ".env"),
