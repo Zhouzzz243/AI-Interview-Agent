@@ -238,6 +238,17 @@ class InterviewBudget:
             return False
 
         # Turn 级检查
+        if budget.round_tokens_used >= budget.round_max_tokens:
+            budget.exhausted_reason = BudgetExhaustedReason.ROUND_TOKENS
+            logger.warning(
+                "budget_exhausted_round_tokens",
+                session_id=session_id,
+                used=budget.round_tokens_used,
+                max=budget.round_max_tokens,
+            )
+            return False
+
+        # Turn 级检查
         if budget.turn_llm_calls >= budget.turn_max_llm_calls:
             budget.exhausted_reason = BudgetExhaustedReason.TURN_LLM_CALLS
             logger.warning(
@@ -273,8 +284,17 @@ class InterviewBudget:
         """
         budget = self.get_or_create(session_id)
 
-        # Round 级：每次调用后重置（因为是单次调用的预算）
-        budget.round_tokens_used = 0
+        # Round 级：检查单次调用是否超限
+        budget.round_tokens_used = tokens_used
+        if tokens_used > budget.round_max_tokens:
+            logger.warning(
+                "budget_round_exceeded",
+                session_id=session_id,
+                tokens_used=tokens_used,
+                round_max=budget.round_max_tokens,
+                hint="单次LLM调用超过Round预算上限",
+            )
+            budget.exhausted_reason = BudgetExhaustedReason.ROUND_TOKENS
 
         # Turn 级
         budget.turn_llm_calls += 1
@@ -327,6 +347,30 @@ class InterviewBudget:
             )
         else:
             logger.debug("budget_cleanup_skip_not_found", session_id=session_id)
+
+    def cleanup_stale(self, idle_timeout_seconds: int = 7200) -> int:
+        """
+        清理超时的预算记录（定期调用，防止内存泄漏）
+
+        【参数】
+        - idle_timeout_seconds: 空闲超时（默认 2 小时）
+
+        【返回】清理的记录数
+        """
+        now = time.time()
+        stale_ids = [
+            sid for sid, budget in self._budgets.items()
+            if now - budget.last_updated > idle_timeout_seconds
+        ]
+        for sid in stale_ids:
+            self._budgets.pop(sid, None)
+        if stale_ids:
+            logger.info(
+                "budget_cleanup_stale",
+                cleaned_count=len(stale_ids),
+                remaining=len(self._budgets),
+            )
+        return len(stale_ids)
 
     def build_degraded_response(
         self,
