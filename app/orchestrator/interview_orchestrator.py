@@ -194,6 +194,14 @@ class InterviewOrchestrator:
             
             # ===== 步骤②③: 从Java端加载简历数据 =====
             resume_data = await self._load_resume_from_db(resume_id)
+
+            if not resume_data:
+                logger.warning(
+                    "start_interview_resume_empty",
+                    session_id=session_id,
+                    resume_id=resume_id,
+                    hint="Java后端未返回简历数据，面试将缺少候选人背景上下文",
+                )
             
             # 将简历数据保存到会话状态，供后续出题使用
             await self._memory_manager.update_session_field(
