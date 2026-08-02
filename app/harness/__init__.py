@@ -16,7 +16,7 @@ app/harness/
 ├── guard.py       # 三层校验（白名单/参数/降级）
 ├── retry.py       # 指数退避 + 错误分类
 ├── trace.py       # 链路追踪（span/trace/tag）✅
-└── checkpoint.py  # 断点恢复（后续实现）
+└── checkpoint.py  # 断点恢复（状态快照/恢复校验）✅
 
 【Java 类比】
 类似 Spring Boot 的 Filter/Interceptor 链，或者 Resilience4j 的
