@@ -205,9 +205,12 @@ class InterviewGuard:
             current = GuardPhase(current_phase)
             new = GuardPhase(new_phase)
         except ValueError as e:
+            # 按优先级选安全兜底: 保留当前阶段 > 默认开场阶段
+            safe = current_phase if current_phase in (p.value for p in GuardPhase) else "self_introduction"
             return GuardResult(
                 passed=False,
                 reason=f"无效的阶段值: {e}",
+                sanitized_value=safe,
             )
 
         # 自转换永远合法（追问/同阶段出新题）
