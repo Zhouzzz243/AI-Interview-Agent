@@ -52,6 +52,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.infrastructure.config import get_settings, AppSettings
 from app.infrastructure.logger import get_logger
 from app.infrastructure.error_handler import register_exception_handlers
+from app.harness.trace import start_trace, end_trace
 from app.api.routes import router as api_router
 
 logger = get_logger(__name__)
@@ -175,24 +176,35 @@ Java(Spring Boot:8082) ←HTTP→ Python(FastAPI:8083)
     )
 
     # ══════════════════════════════════════
-    # 2. 请求日志中间件
+    # 2. 请求日志 + 链路追踪中间件
     # ══════════════════════════════════════
     @app.middleware("http")
     async def request_logging_middleware(request: Request, call_next):
-        """记录所有HTTP请求的耗时和状态码"""
+        """记录所有HTTP请求的耗时和状态码，并注入 trace_id"""
+        import uuid
         start_time = time.time()
 
-        response = await call_next(request)
+        # ── Harness: 启动链路追踪 ──
+        trace_id = request.headers.get("X-Trace-Id", str(uuid.uuid4())[:8])
+        operation = f"{request.method}:{request.url.path}"
+        trace = start_trace(trace_id, operation)
+
+        try:
+            response = await call_next(request)
+        finally:
+            end_trace()
 
         process_time = (time.time() - start_time) * 1000
         logger.info(
             "http_request_completed",
+            trace_id=trace_id,
             method=request.method,
             path=request.url.path,
             status_code=response.status_code,
             duration_ms=round(process_time, 2),
         )
 
+        response.headers["X-Trace-Id"] = trace_id
         response.headers["X-Process-Time"] = f"{round(process_time, 2)}ms"
         return response
 
