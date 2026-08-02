@@ -59,12 +59,7 @@ from app.skills.resume_skill import ResumeSkill
 from app.skills.chat_mode_handler import ChatModeHandlerSkill
 from app.api.schemas import (
     InterviewPhase,
-    ChatResponse,
-    FollowUpDecision,
-    FinalScoreResult,
     DimensionScore,
-    StartInterviewRequest,
-    ChatRequest
 )
 # ── Harness 层依赖注入 ──
 from app.harness.budget import InterviewBudget, get_interview_budget
@@ -136,7 +131,19 @@ class InterviewOrchestrator:
                 "RetryPolicy",
             ]
         )
-    
+
+    def _internal_error(self, e: Exception) -> Dict[str, Any]:
+        """构建内部错误响应，生产环境不暴露异常细节"""
+        logger.exception("internal_error", error=str(e))
+        try:
+            settings = get_settings()
+            debug = settings.app.debug
+        except Exception:
+            debug = True
+        if debug:
+            return self._internal_error(e)
+        return {"code": 500, "error": "服务器内部错误"}
+
     async def start_interview(
         self,
         session_id: str,
@@ -233,6 +240,8 @@ class InterviewOrchestrator:
                     "start_interview_question_generation_failed",
                     error=question_result.error
                 )
+                # 清理已创建的 Redis 会话，避免僵尸会话
+                await self._memory_manager.delete_session(session_id)
                 return {"code": 503, "error": f"AI服务暂时不可用: {question_result.error}"}
             
             generated_question = question_result.data or {}
@@ -280,7 +289,7 @@ class InterviewOrchestrator:
                 session_id=session_id,
                 error=str(e)
             )
-            return {"code": 500, "error": f"服务器内部错误: {str(e)}"}
+            return self._internal_error(e)
     
     async def chat(
         self,
@@ -590,7 +599,7 @@ class InterviewOrchestrator:
                 session_id=session_id,
                 error=str(e)
             )
-            return {"code": 500, "error": f"服务器内部错误: {str(e)}"}
+            return self._internal_error(e)
     
     async def _handle_chat_mode(
         self,
@@ -885,7 +894,7 @@ class InterviewOrchestrator:
                 session_id=session_id,
                 error=str(e)
             )
-            return {"code": 500, "error": f"服务器内部错误: {str(e)}"}
+            return self._internal_error(e)
     
     async def parse_resume(
         self,

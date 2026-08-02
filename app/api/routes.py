@@ -31,7 +31,7 @@ Java端(HTTP) ──→ FastAPI Router(本文件) ──→ InterviewOrchestrato
 import time
 from typing import Any, Dict
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
 from app.infrastructure.logger import get_logger
@@ -41,12 +41,9 @@ from app.orchestrator.interview_orchestrator import (
 )
 from app.api.schemas import (
     ResumeParseRequest,
-    ResumeParseResponse,
     StartInterviewRequest,
     ChatRequest,
     EndInterviewRequest,
-    ChatResponse,
-    EvaluateResponse,
 )
 from app.infrastructure.error_handler import (
     SessionNotFoundError,
