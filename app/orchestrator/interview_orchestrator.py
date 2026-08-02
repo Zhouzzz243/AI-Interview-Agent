@@ -235,12 +235,12 @@ class InterviewOrchestrator:
                 )
                 return {"code": 503, "error": f"AI服务暂时不可用: {question_result.error}"}
             
-            generated_question = question_result.data
+            generated_question = question_result.data or {}
             question_text = generated_question.get("question", "")
 
             # ── Harness: Budget 记账 ──
             estimated_tokens = self._budget.estimate_tokens(question_text)
-            self._budget.track_llm_call(session_id, tokens_used=estimated_tokens)
+            self._budget.track_llm_call(session_id, tokens_used=estimated_tokens, increment_question=True)
             
             # ===== 步骤⑤: 更新Redis状态 =====
             await self._memory_manager.record_assistant_message(
@@ -416,7 +416,7 @@ class InterviewOrchestrator:
                 logger.error("chat_scoring_failed", error=scoring_result.error)
                 return {"code": 503, "error": f"评分服务暂不可用: {scoring_result.error}"}
             
-            score_data = scoring_result.data
+            score_data = scoring_result.data or {}
             raw_score = score_data.get("score", 70)
             
             # ── Harness: Guard 净化评分 ──
@@ -458,7 +458,7 @@ class InterviewOrchestrator:
                 logger.warning("chat_followup_decision_failed", using_default="next_question")
                 decision_data = {"decision": "next_question", "reason": "决策服务降级", "confidence": 0.5}
             else:
-                decision_data = decision_result.data
+                decision_data = decision_result.data or {}
             
             # ── Harness: Guard 净化决策 ──
             decision_data = self._guard.validate_followup_decision(decision_data)
@@ -644,7 +644,7 @@ class InterviewOrchestrator:
                 )
                 return {"code": 503, "error": f"闲聊服务暂不可用: {chat_result.error}"}
             
-            chat_data = chat_result.data
+            chat_data = chat_result.data or {}
 
             # ── Harness: Budget 记账（闲聊模式也是 LLM 调用）──
             estimated_tokens = self._budget.estimate_tokens(
@@ -1130,7 +1130,7 @@ class InterviewOrchestrator:
             question_text = result.data.get("question", "请继续描述你的相关经验。")
             # ── Harness: Budget 记账 ──
             estimated_tokens = self._budget.estimate_tokens(question_text)
-            self._budget.track_llm_call(session_id, tokens_used=estimated_tokens)
+            self._budget.track_llm_call(session_id, tokens_used=estimated_tokens, increment_question=True)
             return question_text
         
         return "请继续分享你的想法。"
