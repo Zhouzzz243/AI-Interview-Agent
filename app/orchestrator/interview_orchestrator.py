@@ -65,6 +65,7 @@ from app.api.schemas import (
 from app.harness.budget import InterviewBudget, get_interview_budget
 from app.harness.guard import InterviewGuard, get_interview_guard
 from app.harness.retry import RetryPolicy, RetryPresets
+from app.orchestrator.prompts import get_phase_prompt
 
 logger = get_logger(__name__)
 
@@ -1172,16 +1173,7 @@ class InterviewOrchestrator:
         new_phase: InterviewPhase
     ):
         """根据新阶段更新系统提示词"""
-        prompts = {
-            InterviewPhase.SELF_INTRO: "你是专业的面试官，正在引导候选人做自我介绍。",
-            InterviewPhase.INTERNSHIP_QA: "你是技术面试官，正在深入询问候选人的实习经历。",
-            InterviewPhase.PROJECT_QA: "你是技术面试官，正在深入询问候选人的项目经验。",
-            InterviewPhase.EIGHT_PART_QA: "你是技术面试官，正在考察候选人的技术基础知识。",
-            InterviewPhase.CHAT_MODE: "你现在处于轻松的闲聊模式，可以聊一些非技术话题。",
-            InterviewPhase.FINAL_SCORE: "面试即将结束，准备给出综合评价。"
-        }
-        
-        new_prompt = prompts.get(new_phase, "你是专业的面试官。")
+        new_prompt = get_phase_prompt(new_phase)
         await self._memory_manager.update_system_prompt(session_id, new_prompt)
 
 
