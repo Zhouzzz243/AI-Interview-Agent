@@ -146,8 +146,20 @@ class ParsedResume(BaseModel):
 
 class ResumeParseRequest(BaseModel):
     """简历解析请求"""
-    file_url: str = Field(..., description="简历文件URL（OSS地址）", example="oss://resumes/user_123.pdf")
-    user_id: str = Field(..., description="用户ID", example="user_456")
+    file_url: str = Field(
+        ...,
+        description="简历文件URL（OSS地址）",
+        min_length=1,
+        max_length=2048,
+        example="oss://resumes/user_123.pdf"
+    )
+    user_id: str = Field(
+        ...,
+        description="用户ID",
+        min_length=1,
+        max_length=128,
+        example="user_456"
+    )
 
 
 class ResumeParseResponse(BaseModel):
@@ -219,8 +231,20 @@ class DifficultyLevel(str, Enum):
 
 class StartInterviewRequest(BaseModel):
     """开启面试请求"""
-    session_id: str = Field(..., description="会话唯一ID", example="session_abc123")
-    resume_id: str = Field(..., description="已解析的简历ID", example="resume_xyz789")
+    session_id: str = Field(
+        ...,
+        description="会话唯一ID",
+        min_length=1,
+        max_length=128,
+        example="session_abc123"
+    )
+    resume_id: str = Field(
+        ...,
+        description="已解析的简历ID",
+        min_length=1,
+        max_length=128,
+        example="resume_xyz789"
+    )
 
 
 class ChatRequest(BaseModel):
@@ -232,7 +256,13 @@ class ChatRequest(BaseModel):
     每次候选人回答一道题后就调用此接口
     返回：评分 + 下一题 + 反馈 + 阶段信息
     """
-    session_id: str = Field(..., description="会话ID", example="session_abc123")
+    session_id: str = Field(
+        ...,
+        description="会话ID",
+        min_length=1,
+        max_length=128,
+        example="session_abc123"
+    )
     content: str = Field(
         ...,
         description="候选人的回答内容",
@@ -249,7 +279,13 @@ class EndInterviewRequest(BaseModel):
     【说明】
     与其他POST接口保持一致，使用Pydantic请求体而非Query参数。
     """
-    session_id: str = Field(..., description="会话ID", example="session_abc123")
+    session_id: str = Field(
+        ...,
+        description="会话ID",
+        min_length=1,
+        max_length=128,
+        example="session_abc123"
+    )
 
 
 class GeneratedQuestion(BaseModel):
