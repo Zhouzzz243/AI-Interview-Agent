@@ -47,6 +47,7 @@ await store.add_asked_question("session_123", "internship", "q1")
 await store.add_score("session_123", "internship", 85)
 """
 
+import asyncio
 import json
 import time
 from datetime import datetime, timezone
@@ -97,9 +98,18 @@ class SessionStore:
         # 默认 TTL（秒）= 2小时
         self._default_ttl = self._settings.redis.session_ttl
 
+        # 会话级锁，防止读-改-写竞态条件
+        self._session_locks: Dict[str, asyncio.Lock] = {}
+
     def _get_key(self, session_id: str) -> str:
         """生成完整的 Redis Key"""
         return f"{self._key_prefix}{session_id}"
+
+    def _get_lock(self, session_id: str) -> asyncio.Lock:
+        """获取会话级别的 asyncio.Lock（懒创建）"""
+        if session_id not in self._session_locks:
+            self._session_locks[session_id] = asyncio.Lock()
+        return self._session_locks[session_id]
 
     # ══════════════════════════════════════════════
     # 会话生命周期管理
@@ -383,6 +393,10 @@ class SessionStore:
     ) -> bool:
         """
         记录某维度的得分
+
+        【并发安全】
+        使用 asyncio.Lock 保护读-改-写周期，防止同一会话的并发写入
+        导致分数丢失。
         
         【参数】dimension 可选值:
         - "self_intro": 自我介绍得分
@@ -399,32 +413,33 @@ class SessionStore:
             logger.error("invalid_score_dimension", dimension=dimension)
             return False
             
-        try:
-            existing_scores = await self._redis.hget(key, "scores", default={})
-            scores_dict = existing_scores if isinstance(existing_scores, dict) else {}
-            
-            if dimension not in scores_dict:
-                scores_dict[dimension] = []
+        async with self._get_lock(session_id):
+            try:
+                existing_scores = await self._redis.hget(key, "scores", default={})
+                scores_dict = existing_scores if isinstance(existing_scores, dict) else {}
                 
-            scores_dict[dimension].append(score)
-            
-            await self._redis.hset(key, {"scores": scores_dict})
-            await self._refresh_ttl(key)
-            await self._update_last_active(key)
-            
-            logger.info(
-                "score_recorded",
-                session_id=session_id,
-                dimension=dimension,
-                score=score,
-                total=len(scores_dict[dimension])
-            )
-            
-            return True
-            
-        except Exception as e:
-            logger.error("add_score_failed", session_id=session_id, error=str(e))
-            return False
+                if dimension not in scores_dict:
+                    scores_dict[dimension] = []
+                    
+                scores_dict[dimension].append(score)
+                
+                await self._redis.hset(key, {"scores": scores_dict})
+                await self._refresh_ttl(key)
+                await self._update_last_active(key)
+                
+                logger.info(
+                    "score_recorded",
+                    session_id=session_id,
+                    dimension=dimension,
+                    score=score,
+                    total=len(scores_dict[dimension])
+                )
+                
+                return True
+                
+            except Exception as e:
+                logger.error("add_score_failed", session_id=session_id, error=str(e))
+                return False
 
     async def get_scores(self, session_id: str) -> Optional[Dict[str, List[int]]]:
         """获取所有维度的得分记录"""
