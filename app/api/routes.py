@@ -70,19 +70,44 @@ async def health_check():
     - K8s/Docker的 livenessProbe 和 readinessProbe
     - 负载均衡器的健康检查
 
-    【返回示例】
+    【返回值】
     {
-        "status": "ok",
+        "status": "ok" | "degraded",
         "service": "AI-Interview-Agent-Python",
         "version": "1.0.0",
-        "timestamp": 1744972800
+        "timestamp": 1744972800,
+        "dependencies": {
+            "redis": "connected" | "disconnected",
+            "llm": "configured" | "not_configured"
+        }
     }
     """
+    from app.infrastructure.redis_client import RedisClient
+    from app.infrastructure.config import get_settings
+    import os
+
+    # 检查 Redis
+    redis_client = RedisClient()
+    redis_ok = redis_client.is_available()
+
+    # 检查 LLM 配置
+    settings = get_settings()
+    llm_key = os.getenv("ZHIPUAI_API_KEY", settings.llm.api_key)
+    llm_configured = bool(llm_key and llm_key != "your_api_key_here")
+
+    dependencies = {
+        "redis": "connected" if redis_ok else "disconnected",
+        "llm": "configured" if llm_configured else "not_configured",
+    }
+
+    overall_status = "ok" if redis_ok else "degraded"
+
     return {
-        "status": "ok",
+        "status": overall_status,
         "service": "AI-Interview-Agent-Python",
-        "version": "1.0.0",
+        "version": settings.app.app_version,
         "timestamp": int(time.time()),
+        "dependencies": dependencies,
     }
 
 
